@@ -18,7 +18,7 @@
 #define HSM_LOG(msg)             printf("%s:%d	%s\n", __FILE__, __LINE__, msg.c_str())
 #define HSM_ASSERT(expr, msg)    assert( (expr) && (msg) )
 
-#define HSM_RESERVE_EVENT_QUEUE_FOR_NEXT_FRAME
+#define CLEAR_QUEUE_EACH_RUN
 
 class HSM_Event {
 public:
@@ -123,12 +123,17 @@ public:
 
 	virtual bool enqueueEvent(HSM_Event* _event, const std::string& msg="") {
 		if (_event->isEventIdle()) {
-			mEventQueue.push(_event);
-			_event->changeEventStatus(HSM_Event::EVENT_STATUS_WAIT_RESPONSE);
-			if (!msg.empty()) {
-				_HSM_LOG(msg);
+			for (auto trigger : mCurState->getTriggers()) {  // enqueue event that only relative to current state
+				if (trigger._event == _event) {
+					mEventQueue.push(_event);
+					_event->changeEventStatus(HSM_Event::EVENT_STATUS_WAIT_RESPONSE);
+					if (!msg.empty()) {
+						_HSM_LOG(msg);
+					}
+					return true;
+				}
 			}
-			return true;
+			return false;
 		} else {
 			HSM_ASSERT(0, "Event is currenttly in EventQueue and not handled.");
 			return false;
@@ -142,8 +147,8 @@ public:
 		return true;
 	}
 
-	virtual bool isInState(HSM_Region*) {
-		return (this == mCurState) ? true : false;
+	const HSM_Region* getCurrentState(void)  {
+		return mCurState;
 	}
 
 protected:
@@ -166,9 +171,9 @@ protected:
 				cur_state = trigger._state;
 				trigger._trans_effect->run();
 
-#ifdef HSM_RESERVE_EVENT_QUEUE_FOR_NEXT_FRAME
-#else           // clear queue for next frame trigger
+#ifdef CLEAR_QUEUE_EACH_RUN
 				while (!mEventQueue.empty()) { mEventQueue.pop(); }
+#else
 #endif
 				mCurState = cur_state;
 
