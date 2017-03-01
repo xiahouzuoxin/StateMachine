@@ -18,26 +18,37 @@
 #define HSM_LOG(msg)             printf("%s:%d	%s\n", __FILE__, __LINE__, msg.c_str())
 #define HSM_ASSERT(expr, msg)    assert( (expr) && (msg) )
 
-// #define HSM_RESERVE_EVENT_QUEUE_FOR_NEXT_FRAME
+#define HSM_RESERVE_EVENT_QUEUE_FOR_NEXT_FRAME
 
 class HSM_Event {
 public:
-	HSM_Event(const std::string& name = "Unkonw") : mName(name) { 
+	enum EventStatus {
+		EVENT_STATUS_WAIT_RESPONSE,
+		EVENT_STATUS_WAIT_IDLE
+	};
+
+	HSM_Event(const std::string& name = "Unkonw") : mName(name) {
 		stat_id++; 
 		event_id = stat_id;
+		is_handled = EVENT_STATUS_WAIT_IDLE;
 	}
 
-	const int getEventID() { return event_id; }
+	const int  getEventID() { return event_id; }
+	const bool isEventIdle() { return (is_handled==EVENT_STATUS_WAIT_IDLE) ? true : false; }
+
+	void changeEventStatus(const enum EventStatus to_status) { is_handled = to_status; }
+
 private:
 	std::string mName;
-	int event_id;          // current event unique ID
-	static int stat_id;    // stat how many event registered
+	int         event_id;          // current event unique ID
+	static int  stat_id;    // stat how many event registered
+	EventStatus is_handled;
 };
 
 class HSM_TransFunc {
 public:
 	HSM_TransFunc(std::function<bool(void)> func) : mFunction(func) {};
-	void run() { mFunction(); }
+	virtual void run() { mFunction(); }
 
 private:
 	std::function<bool(void)> mFunction;
@@ -83,6 +94,7 @@ public:
 		while ( !mEventQueue.empty() ) {
 			HSM_Event *prior_event = mEventQueue.front();
 			mEventQueue.pop();
+			prior_event->changeEventStatus(HSM_Event::EVENT_STATUS_WAIT_IDLE);
 
 			// Recursive parent states
 			HSM_Region* recursiveState = mCurState;
@@ -110,11 +122,28 @@ public:
 	}
 
 	virtual bool enqueueEvent(HSM_Event* _event, const std::string& msg="") {
-		mEventQueue.push(_event);
-		if (!msg.empty()) {
-			_HSM_LOG(msg);
-		}
+		if (_event->isEventIdle()) {
+			mEventQueue.push(_event);
+			_event->changeEventStatus(HSM_Event::EVENT_STATUS_WAIT_RESPONSE);
+			if (!msg.empty()) {
+				_HSM_LOG(msg);
+			}
+			return true;
+		} else {
+			HSM_ASSERT(0, "Event is currenttly in EventQueue and not handled.");
+			return false;
+		}	
+	}
+
+	virtual bool clearEventQuene(void) {
+		// std::queue<HSM_Event *> empty;
+		// mEventQueue.swap(empty);
+		while (!mEventQueue.empty()) { mEventQueue.pop(); }
 		return true;
+	}
+
+	virtual bool isInState(HSM_Region*) {
+		return (this == mCurState) ? true : false;
 	}
 
 protected:

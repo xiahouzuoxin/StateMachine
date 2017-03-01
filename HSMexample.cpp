@@ -1,35 +1,18 @@
-
-## Features
-
-Just a simple implemention of HSM(Hierarchical State Machine) framework for game.
-
-1. C++11 implemention support Hierarchical FSM with simple user interface.
-2. All event definition (though inside class) have an identical ID
-3. Event response priority: outer hierarchical is higher
-
-## Updates
-
-- 20170301 Add status for event class, thus check event status using `isEventIdle` first before enque to event queue.
-
-## Example
-
-Just inherit from `class HSM_Region` to define an FSM. Initialization of `states` carefully. Below is an HSM example.
-
-![](./ExampleState.png)
-
-```cpp
-#include <Windows.h>   // Just for Sleep()
+#include <Windows.h>  // for spleep()
+#include <iostream>
 #include "StateMachine.h"
+
+using namespace std;
 
 class HelloHSM : public HSM_Region {
 public:
 
 	HelloHSM(const std::string& name = "Unknow", HSM_Region* parent = nullptr) 
-		: HSM_Region(name, parent), state1("state1",this), state2("state2", this) {  // Specific the state initialization
+		: HSM_Region(name, parent), state1("state1",this), state2("state2", this) {
 		state1.addTransitionTuple(&evt1, &state2, [] {std::cout << "==>HelloHSM: Hello state2" << std::endl; return true; });
 		state2.addTransitionTuple(&evt2, &state1, [] {std::cout << "==>HelloHSM: Hello state1" << std::endl; return true; });
 
-		setInitialState(&state1);  // Each Region should set an initial state
+		setInitialState(&state1);
 	}
 
 	HSM_Region state1;
@@ -55,10 +38,12 @@ public:
 	HSM_Event evt4;
 };
 
-int main() {
+int HSMexample(void) {
+
 	ThankHSM hello;
 
 	int k = 0;
+
 	while (true)
 	{
 		switch (k % 7) {
@@ -67,7 +52,7 @@ int main() {
 		case 1:
 			hello.enqueueEvent(&(hello.state3.evt2), "enqueue evt2"); break;
 		case 2:
-			hello.enqueueEvent(&(hello.evt3), "enqueue evt3"); break; 
+			hello.enqueueEvent(&(hello.evt3), "enqueue evt3"); break;
 		case 3:
 			hello.enqueueEvent(&(hello.evt4), "enqueue evt4"); break;
 		case 4:
@@ -86,27 +71,3 @@ int main() {
 		Sleep(500);
 	}
 }
-``` 
-
-Result: 
-
-```
-enqueue evt1
-==>HelloHSM: Hello state2
-enqueue evt2
-==>HelloHSM: Hello state1
-enqueue evt3
-==>ThankHSM: Hello state4
-enqueue evt4
-==>ThankHSM: Hello state3
-enqueue evt3
-==>ThankHSM: Hello state4
-enqueue evt4
-==>ThankHSM: Hello state3
-enqueue evt4
-enqueue evt1
-==>HelloHSM: Hello state2
-enqueue evt2
-==>HelloHSM: Hello state1
-enqueue evt3
-```
